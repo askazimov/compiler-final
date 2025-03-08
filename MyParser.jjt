@@ -1,0 +1,384 @@
+options {
+    MULTI = true;
+    VISITOR = true;
+    NODE_USES_PARSER = true;
+    LOOKAHEAD = 2;
+    NODE_EXTENDS = "CoreNode";
+    VISITOR_EXCEPTION = "SemanticException";
+}
+
+PARSER_BEGIN(MyParser)
+package myparser;
+
+import java.io.*;
+
+public class MyParser {
+    public static void main(String[] args) {
+        try {
+            MyParser parser = new MyParser(System.in);
+
+
+            MyVisitor semanticChecker = new MyVisitor();
+            
+            ASTProgram astProgram = parser.program();
+
+            astProgram.jjtAccept(semanticChecker, null);
+
+            //astProgram.dump("");
+            System.out.println("Parsed successfully");
+        } catch (SemanticException e) {
+            System.err.println("Semantic error: " + e.getMessage());
+        } catch (ParseException e) {
+            System.err.println(e.getMessage());
+        }
+    }
+    
+}
+PARSER_END(MyParser)
+
+SKIP :
+{
+    " "
+|   "\t"
+|   "\r"
+|   "\n"
+}
+
+TOKEN :
+{
+    <PROC: "PROC">
+|   <FUN: "FUN">
+|   <MAIN: "main">
+|   <BEGIN: "BEGIN">
+|   <END: "END">
+|   <VARS: "VARS">
+|   <RETURNING: "RETURNING">
+|   <RETURN: "RETURN">
+|   <WHILE: "WHILE">
+|   <DO: "DO">
+|   <ENDWHILE: "ENDWHILE">
+|   <IF: "IF">
+|   <THEN: "THEN">
+|   <ELSE: "ELSE">
+|   <ENDIF: "ENDIF">
+|   <OR: "OR">
+|   <AND: "AND">
+|   <TRUE: "TRUE">
+|   <FALSE: "FALSE">
+|   <INTEGER: "Integer">
+|   <FLOAT: "Float">
+|   <BOOLEAN: "Boolean">
+|   <STRING: "String">
+|   <ASSIGN: ":=">
+|   <LBRACKET: "[">
+|   <RBRACKET: "]">
+|   <LPAREN: "(">
+|   <RPAREN: ")">
+|   <COMMA: ",">
+|   <PLUS: "+">
+|   <MINUS: "-">
+|   <MULT: "*">
+|   <DIV: "/">
+|   <NOT: "!">
+|   <LT: "<">
+|   <GT: ">">
+|   <LE: "<=">
+|   <GE: ">=">
+|   <EQ: "=">
+|   <NEQ: "!=">
+|   <SEMICOLON: ";">
+|   <STRING_LITERAL: "\"" (~["\""])* "\"">
+|   <INT_LITERAL: (<DIGIT>)+>
+|   <ID: <LETTER> (<LETTER> | <DIGIT>)*>
+|   <LETTER: ["a"-"z", "A"-"Z"]>
+|   <DIGIT: ["0"-"9"]>
+}
+
+ASTProgram program() #Program :
+{}
+{
+    ( function_def() | procedure_def() )* main_proc()
+    <EOF>
+    { return jjtThis; }
+}
+
+void main_proc() #MainProc :
+{}
+{
+    <PROC> <MAIN>
+    <LPAREN> [ param() ( <COMMA> param() )* ] <RPAREN>
+    <VARS> ( declaration() )* 
+    <BEGIN> stmt_list() <END>
+}
+
+void function_def() #FunctionDef :
+{
+    String funcName;
+    String returnType;
+}
+{
+    <FUN> funcName=id() <LPAREN> [ param() ( <COMMA> param() )* ] <RPAREN>
+    <RETURNING> returnType=vartype()
+    <VARS> ( declaration() )*
+    <BEGIN> stmt_list() <RETURN> expr() <SEMICOLON> <END>
+    { jjtThis.data.put("funcName", funcName); jjtThis.data.put("returnType", returnType); }
+}
+
+void procedure_def() #ProcedureDef :
+{
+    String procName;
+}
+{
+    <PROC> procName=id() <LPAREN> [ param() ( <COMMA> param() )* ] <RPAREN>
+    <VARS> ( declaration() )*
+    <BEGIN> stmt_list() <END>
+    { jjtThis.data.put("procName", procName); }
+}
+
+void param() #Param :
+{
+    String vtype;
+    String varname;
+}
+{
+    vtype=vartype() [ <LBRACKET> <INT_LITERAL> <RBRACKET> ] varname=id()
+
+    { jjtThis.data.put("type", vtype); jjtThis.data.put("name", varname); }
+}
+
+void while_stmt() #WhileStmt :
+{}
+{
+    <WHILE> <LPAREN> bool_exp() <RPAREN> <DO>
+    stmt_list()
+    <ENDWHILE>
+}
+
+void stmt_list() #StmtList :
+{}
+{
+    ( stmt())*
+}
+
+void stmt() #Stmt :
+{}
+{
+    LOOKAHEAD(2)
+    assignment()  <SEMICOLON>
+|
+    LOOKAHEAD(2)
+    if_stmt()
+|
+    while_stmt()
+|
+    function_call()  <SEMICOLON>
+}
+
+void declaration() #Declaration :
+{
+    String vtype;
+    String varname;
+}
+{
+    vtype=vartype() varname=id() [ <LBRACKET> <INT_LITERAL> <RBRACKET> ] <SEMICOLON>
+    { jjtThis.data.put("type", vtype); jjtThis.data.put("name", varname); }
+}
+
+void assignment() #Assignment :
+{
+    Token t;
+}
+{
+    t=<ID> [ <LBRACKET> arithm_exp() <RBRACKET> ] <ASSIGN>expr()
+    { jjtThis.data.put("name", t.image); }
+}
+
+void if_stmt() #IfStmt :
+{}
+{
+    <IF> bool_exp() <THEN>
+    stmt_list()
+    [ <ELSE> stmt_list() ]
+    <ENDIF>
+}
+
+void expr() #Expr :
+{}
+{
+    function_call()
+    { jjtThis.data.put("argType", "FunctionCall"); }
+|
+    arithm_exp()
+    { jjtThis.data.put("argType", "Integer"); }
+|
+    bool_exp()
+    { jjtThis.data.put("argType", "Boolean"); }
+|
+    id() [ <LBRACKET> <INT_LITERAL> <RBRACKET> ]
+    { jjtThis.data.put("argType", "Variable"); }
+|
+    <STRING_LITERAL>
+    { jjtThis.data.put("argType", "String"); }
+}
+
+void arithm_exp() #ArithmExp :
+{}
+{
+    term() arithm_exp_tail()
+}
+
+void arithm_exp_tail() #ArithmExpTail :
+{}
+{
+    ( ( <PLUS> | <MINUS> ) term() arithm_exp_tail() )?
+}
+
+void term() #Term :
+{}
+{
+    unary() term_tail()
+}
+
+void term_tail() #TermTail :
+{}
+{
+    ( ( <MULT> | <DIV> ) unary() term_tail() )?
+}
+
+void unary() #Unary :
+{}
+{
+    ( <PLUS> | <MINUS> )? elem()
+}
+
+void elem() #Elem :
+{}
+{
+    <LPAREN> arithm_exp() <RPAREN>
+|
+    operand()
+}
+
+void operand() #Operand :
+{}
+{
+    <INT_LITERAL>
+|
+    function_call()
+|
+    array_element()
+|
+    id()
+}
+
+void bool_exp() #BoolExp :
+{}
+{
+    bool_term() bool_exp_tail()
+}
+
+void bool_exp_tail() #BoolExpTail :
+{}
+{
+    ( <OR> bool_term() bool_exp_tail() )?
+}
+
+void bool_term() #BoolTerm :
+{}
+{
+    negation() bool_term_tail()
+}
+
+void bool_term_tail() #BoolTermTail :
+{}
+{
+    ( <AND> negation() bool_term_tail() )?
+}
+
+void negation() #Negation :
+{}
+{
+    <NOT> bool_elem()
+|
+    bool_elem()
+}
+
+void bool_elem() #BoolElem :
+{}
+{
+    <LPAREN> bool_exp() <RPAREN>
+|
+    <TRUE>
+|
+    <FALSE>
+|
+    comparison()
+|
+    function_call()
+|
+    array_element()
+|
+    id()
+}
+
+void comparison() #Comparison :
+{}
+{
+    arithm_exp() comparison_operator() arithm_exp()
+}
+
+void comparison_operator() #ComparisonOperator :
+{}
+{
+    <LT>
+|
+    <GT>
+|
+    <EQ>
+|
+    <LE>
+|
+    <GE>
+|
+    <NEQ>
+}
+
+void function_call() #FunctionCall :
+{
+    String funcName;
+}
+{
+    funcName=id() <LPAREN> [ expr() ] <RPAREN>
+    { jjtThis.data.put("funcName", funcName); }
+}
+
+void array_element() #ArrayElement :
+{}
+{
+    id() <LBRACKET> <INT_LITERAL> <RBRACKET>
+}
+
+String vartype() #Vartype :
+{
+    Token t;
+}
+{
+    t=<INTEGER>
+    { return t.image; }
+|
+    t=<FLOAT>
+    { return t.image; }
+|
+    t=<BOOLEAN>
+    { return t.image; }
+|
+    t=<STRING>
+    { return t.image; }
+}
+
+String id() :
+{}
+{
+    <ID>
+    { jjtThis.data.put("name", token.image); return token.image; }
+}
