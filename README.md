@@ -13,7 +13,153 @@ To run the program, add the program's files to your CLASSPATH and run `java mypa
 
 ## Test cases
 
-...
+### Test case 1: correct parsing
+```
+PROC test(Integer z, Integer x)
+VARS
+BEGIN
+END
+
+FUN square(Integer x) RETURNING Integer
+VARS
+BEGIN
+    RETURN x * x;
+END
+
+
+FUN factorial(Integer y) RETURNING Integer
+VARS
+Integer counter[12];
+Integer x;
+BEGIN
+
+	
+	x := square();
+
+	WHILE (x < 10) DO
+		x := x + 1;
+	ENDWHILE
+
+	RETURN x;
+END
+
+PROC main()
+VARS
+Integer result;
+Integer arraySize;
+Integer f;
+BEGIN
+	
+	arraySize := getInt();
+	
+	IF arraySize > 300 OR arraySize < 0 THEN
+	ENDIF
+
+	result := square(5);
+	
+
+	f := factorial(12);
+END
+```
+
+### Test case 2: syntax error
+```
+FUN square() RETURNING Integer
+VARS
+Integer x;
+BEGIN
+    RETURN x * x;
+END
+
+PROC unbalanced()
+VARS
+BEGIN
+    IF (5 > 3 THEN
+        echo("Error");
+    ENDIF
+END
+
+
+PROC main()
+VARS
+    Integer result;
+BEGIN
+    result := square(5);
+END
+```
+
+### Test  case 3: local variable conflicts with global variable
+```
+FUN square() RETURNING Integer
+VARS
+Integer x;
+BEGIN
+    RETURN x * x;
+END
+
+PROC unbalanced()
+VARS
+BEGIN
+    IF (5 > 3) THEN
+        echo("Error");
+    ENDIF
+END
+
+
+PROC main()
+VARS
+    Integer result;
+    Integer x;
+BEGIN
+    result := square(5);
+END
+```
+
+### Test case 4: return type mismatch
+```
+FUN randFunc() RETURNING Boolean
+VARS
+BEGIN
+    RETURN TRUE;
+END
+
+PROC main()
+VARS
+    Integer result;
+BEGIN
+    result := randFunc();
+END
+```
+
+### Test case 5: procedure used in function context
+```
+PROC test(Integer x)
+VARS
+BEGIN
+    x := x * x;
+END
+
+PROC main()
+VARS
+    Integer result;
+BEGIN
+    result := test(5);
+END
+```
+
+### Test case 6: usage of built-in functions
+```
+PROC main()
+VARS
+    Integer result;
+    String input;
+BEGIN
+    result := getInt();
+    input := getString();
+
+    echo(input);
+END
+```
 
 ## Authors
 Kazimov Aslan
